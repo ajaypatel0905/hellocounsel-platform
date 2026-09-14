@@ -1,0 +1,27 @@
+[project]
+name = "hellocounsel-platform"
+version = "0.1.0"
+description = "A working slice of a platform for long-running agents at a plaintiff law firm"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "twilio>=9.0",
+    "google-genai>=1.0",
+    "anthropic>=0.50",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["counsel"]

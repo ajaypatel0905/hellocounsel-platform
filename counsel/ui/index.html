@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Desk</title>
+<style>
+  :root{--bg:#f6f7f9;--panel:#fff;--ink:#17202a;--muted:#5f6b7a;--line:#e3e7ec;--accent:#1f4e79;--accent-2:#eaf1f8;
+        --ok:#1d7a4a;--warn:#b7791f;--bad:#b3261e;--wait:#5a6b7d;--radius:10px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px} header h1 span{color:var(--muted);font-weight:400}
+  nav{display:flex;gap:4px;margin-left:auto} nav button{background:none;border:1px solid transparent;padding:7px 12px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:500}
+  nav button.active{background:var(--accent-2);color:var(--accent);border-color:#cfdeed} nav .badge{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;margin-left:6px;line-height:18px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px} .chip{border:1px solid var(--line);border-radius:14px;padding:2px 9px;background:#fff}
+  main{max-width:1240px;margin:0 auto;padding:20px 24px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+  main.single{grid-template-columns:1fr} .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 12px;font-weight:600}
+  h3{font-size:15px;margin:0 0 4px} .muted{color:var(--muted)} .small{font-size:12px}
+  .pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.4px}
+  .pill.waiting{background:#eef1f5;color:var(--wait)} .pill.active{background:#e8f4fd;color:#0b62a4} .pill.blocked{background:#fdecea;color:var(--bad)}
+  .pill.completed{background:#e6f4ec;color:var(--ok)} .pill.cancelled{background:#f1f1f1;color:#777}
+  .pill.meaningful{background:#fff4e0;color:var(--warn)} .pill.urgent{background:#fdecea;color:var(--bad)} .pill.routine{background:#eef1f5;color:var(--wait)}
+  .pill.question{background:#e8f4fd;color:#0b62a4} .pill.approval{background:#fff4e0;color:var(--warn)} .pill.escalation{background:#fdecea;color:var(--bad)}
+  .matter{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;background:#fff}
+  .matter header{padding:0;border:0;background:none;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .eng{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-top:8px;cursor:pointer;background:#fbfcfd}
+  .eng:hover{border-color:#b9c9da} .eng.sel{border-color:var(--accent);background:var(--accent-2)}
+  .eng .who{font-weight:600} .eng .goal{grid-column:1/-1;color:var(--muted);font-size:12.5px} .eng .last{grid-column:1/-1;font-size:12.5px}
+  .state{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px} .state span{font-size:11.5px;background:#eef1f5;border-radius:6px;padding:2px 7px;color:#334}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap} .grow{flex:1;min-width:180px}
+  input[type=text],textarea,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;background:#fff}
+  textarea{min-height:64px;resize:vertical}
+  button.btn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font:inherit;font-weight:500}
+  button.btn.ghost{background:#fff;color:var(--accent)} button.btn.warn{background:#fff;color:var(--bad);border-color:#e6b3af} button.btn:disabled{opacity:.5;cursor:default}
+  .timeline{list-style:none;margin:0;padding:0} .timeline li{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+  .timeline li:first-child{border-top:0} .timeline time{color:var(--muted);font-size:11.5px;padding-top:2px} .timeline .t{font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#445}
+  .timeline .t.agent{color:#0b62a4} .timeline .t.human{color:var(--warn)} .timeline .t.counterparty{color:var(--ok)}
+  .bubble{background:#f2f5f8;border-radius:8px;padding:8px 10px;margin-top:4px;white-space:pre-wrap} .bubble.in{background:#e9f6ee}
+  .review{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:8px;padding:12px;margin-bottom:10px;background:#fff}
+  .review.escalation{border-left-color:var(--bad)} .review.question{border-left-color:#0b62a4}
+  .review .q{margin:6px 0 10px;font-size:14px} .opts{display:flex;gap:6px;flex-wrap:wrap}
+  .kv{display:grid;grid-template-columns:140px 1fr;gap:4px 10px;font-size:13px} .kv div:nth-child(odd){color:var(--muted)}
+  .demo{border:1px dashed #c9d3de;background:#fbfcfd;border-radius:var(--radius);padding:12px;margin-top:14px}
+  .demo h2{color:#7a6a3a} .empty{color:var(--muted);padding:20px;text-align:center}
+  .feed li{border-top:1px solid var(--line);padding:10px 0;list-style:none} .feed li:first-child{border-top:0}
+  .pb{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12px}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#17202a;color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;max-width:80vw}
+  .toast.show{opacity:1}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent Desk <span>· long-running agents for the firm</span></h1>
+  <div class="chips" id="chips"></div>
+  <nav>
+    <button data-view="clients" class="active">Clients</button>
+    <button data-view="review">Review queue<span class="badge" id="rev-badge" hidden>0</span></button>
+    <button data-view="updates">Updates</button>
+    <button data-view="playbooks">Playbooks</button>
+  </nav>
+</header>
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const state = { view: 'clients', matters: [], status: {}, sel: null, detail: null, reviews: [], updates: [], playbooks: [] };
+const api = async (path, opts = {}) => {
+  const r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  return r.json();
+};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = iso => iso ? iso.replace('T', ' ').replace(/\+00:00$/, '') : '';
+const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); };
+
+async function refresh() {
+  const [status, matters, reviews] = await Promise.all([api('/status'), api('/matters'), api('/interventions')]);
+  Object.assign(state, { status, matters, reviews });
+  if (state.view === 'updates') state.updates = await api('/updates');
+  if (state.view === 'playbooks' && !state.playbooks.length) state.playbooks = await api('/playbooks');
+  if (state.sel) { try { state.detail = await api('/engagements/' + state.sel); } catch { state.sel = null; state.detail = null; } }
+  render();
+}
+
+function render() {
+  const s = state.status;
+  $('#chips').innerHTML = `<span class="chip">brain: ${esc(s.brain)}</span><span class="chip">voice: ${esc(s.voice_transport)}</span>
+    <span class="chip">${s.clock === 'sim' ? 'sim time' : 'now'}: ${fmt(s.now)}</span><span class="chip">${s.pending_wakeups} scheduled wake-ups</span>`;
+  const b = $('#rev-badge'); b.hidden = !state.reviews.length; b.textContent = state.reviews.length;
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
+  const main = $('#main'); main.className = state.view === 'clients' ? '' : 'single';
+  main.innerHTML = ({ clients: renderClients, review: renderReview, updates: renderUpdates, playbooks: renderPlaybooks })[state.view]();
+  bind();
+}
+
+// ---------------------------------------------------------------- clients
+function renderClients() {
+  const left = `
+    <section>
+      <div class="panel" style="margin-bottom:14px">
+        <h2>Tell the agent</h2>
+        <div class="row">
+          <select id="cmd-matter" style="width:200px">${state.matters.map(m => `<option value="${m.id}">${esc(m.client_name)}</option>`).join('')}</select>
+          <input type="text" id="cmd-text" class="grow" placeholder='e.g. "call City General again and ask for a release date"'>
+          <button class="btn" id="cmd-go">Go</button>
+        </div>
+        <div class="small muted" style="margin-top:6px">Creates a new engagement or hands an instruction to the one already running.</div>
+      </div>
+      ${state.matters.map(renderMatter).join('') || '<div class="empty">No matters yet.</div>'}
+      ${state.status.clock === 'sim' ? demoClock() : ''}
+    </section>`;
+  return left + `<section id="detail">${state.detail ? renderDetail(state.detail) : '<div class="panel empty">Select an engagement to see its timeline, state and review items.</div>'}</section>`;
+}
+function renderMatter(m) {
+  return `<div class="matter"><header><div><h3>${esc(m.client_name)} <span class="muted small">· ${esc(m.case_type)} · incident ${esc(m.incident_date)}</span></h3>
+      <div class="small muted">owner ${esc(m.owner)}${m.needs_review ? ` · <b style="color:var(--bad)">${m.needs_review} need${m.needs_review > 1 ? '' : 's'} review</b>` : ''}</div></div>
+      <button class="btn ghost small new-eng" data-matter="${m.id}">+ Assign agent</button></header>
+    ${m.engagements.map(e => renderEngCard(e)).join('') || '<div class="small muted" style="margin-top:8px">No agents assigned on this matter.</div>'}
+  </div>`;
+}
+function renderEngCard(e) {
+  const lu = e.latest_update;
+  const next = e.status === 'waiting' && e.next_wake_at ? `next wake ${fmt(e.next_wake_at)}` : e.status === 'blocked' ? 'waiting on the firm' : e.status;
+  return `<div class="eng ${state.sel === e.id ? 'sel' : ''}" data-id="${e.id}">
+    <div><span class="who">${esc(e.playbook_name)}</span> <span class="muted">· ${esc(e.contact.name)}</span></div>
+    <div><span class="pill ${e.status}">${e.status}</span></div>
+    <div class="goal">${esc(e.goal)}</div>
+    ${lu ? `<div class="last"><span class="pill ${lu.significance}">${lu.significance}</span> ${esc(lu.summary)} <span class="muted small">· ${fmt(lu.ts)}</span></div>` : ''}
+    <div class="state" style="grid-column:1/-1">${Object.entries(e.state || {}).filter(([k, v]) => v).map(([k, v]) => `<span>${esc(k)}: ${esc(v)}</span>`).join('')}<span class="muted" style="background:none">${esc(next)}</span></div>
+  </div>`;
+}
+function demoClock() {
+  return `<div class="demo"><h2>Demo controls · simulated clock</h2>
+    <div class="row"><span class="small muted grow">Move time forward and the scheduler runs whatever is due, exactly as the worker would in real time.</span>
+    <button class="btn ghost adv" data-h="24">+1 day</button><button class="btn ghost adv" data-h="72">+3 days</button><button class="btn ghost adv" data-h="168">+1 week</button><button class="btn ghost adv" data-h="336">+2 weeks</button></div></div>`;
+}
+
+// ----------------------------------------------------------------- detail
+function renderDetail(d) {
+  const open = d.open_intervention;
+  const lastOut = [...d.events].reverse().find(e => e.type === 'message_out' || e.type === 'call_placed');
+  const ringing = d.calls.find(c => ['simulated_ringing', 'ringing', 'placing'].includes(c.status) && !c.ended_at);
+  const live = !['completed', 'cancelled'].includes(d.status);
+  return `<div class="panel">
+    <div class="row" style="justify-content:space-between"><div><h3>${esc(d.playbook_name)} · ${esc(d.contact.name)}</h3>
+      <div class="small muted">${esc(d.matter_client)} · owner ${esc(d.owner)} · <code>${d.id}</code></div></div><span class="pill ${d.status}">${d.status}</span></div>
+    <p style="margin:10px 0 12px">${esc(d.goal)}</p>
+    <div class="kv">
+      <div>Counterparty</div><div>${esc(d.contact.kind)} · ${esc(d.contact.phone || '')} ${esc(d.contact.email || '')} · prefers ${esc(d.contact.preferred_channel)}</div>
+      <div>Attempts unanswered</div><div>${d.unanswered_attempts} of ${d.playbook.max_unanswered_attempts} before the runtime escalates</div>
+      <div>Next wake</div><div>${d.next_wake_at ? fmt(d.next_wake_at) : '—'}</div>
+      ${Object.entries(d.state || {}).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(v)}</div>`).join('')}
+      ${d.outcome ? `<div>Outcome</div><div>${esc(d.outcome)}</div>` : ''}
+    </div>
+    ${open ? renderReviewItem({ ...open, contact_name: d.contact.name, matter_client: d.matter_client, playbook_name: d.playbook_name }, true) : ''}
+    ${live ? `<div class="row" style="margin-top:12px"><input type="text" id="nudge-text" class="grow" placeholder="Ask the agent to do something on this engagement…"><button class="btn" id="nudge-go">Send</button><button class="btn warn" id="cancel-eng">Stop</button></div>` : ''}
+    ${live && state.status.voice_transport === 'simulated' || live && lastOut ? renderDemoReply(d, lastOut, ringing) : ''}
+    <h2 style="margin-top:18px">Timeline</h2>
+    <ul class="timeline">${[...d.events].reverse().map(renderEvent).join('')}</ul>
+  </div>`;
+}
+function renderDemoReply(d, lastOut, ringing) {
+  if (ringing) {
+    return `<div class="demo"><h2>Demo · a call is ringing ${esc(d.contact.name)}</h2>
+      <div class="small muted" style="margin-bottom:6px">Agent opens with: “${esc(ringing.opening)}”</div>
+      <div class="small muted">Type what the person on the phone says, one line per turn. ${state.status.voice_transport !== 'simulated' ? 'With Twilio configured the real call is live; this box drives the simulated transport only.' : ''}</div>
+      <textarea id="sim-utt" placeholder="Yes, that request is here. There's a $45 fee before we can release.&#10;About five business days after payment."></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn" id="sim-call" data-call="${ringing.id}">Answer the call</button><button class="btn ghost" id="sim-noanswer" data-call="${ringing.id}">No answer</button></div></div>`;
+  }
+  if (!lastOut) return '';
+  const ch = lastOut.payload.channel;
+  return `<div class="demo"><h2>Demo · simulate a ${esc(ch)} reply from ${esc(d.contact.name)}</h2>
+    <div class="small muted" style="margin-bottom:6px">This posts to the same inbound webhook a real provider would.</div>
+    <textarea id="sim-reply" placeholder="Still processing, should be out in about 2 weeks."></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn" id="sim-send" data-ch="${esc(ch === 'voice' ? 'email' : ch)}">Reply</button></div></div>`;
+}
+function renderEvent(e) {
+  const p = e.payload || {};
+  let body = '';
+  switch (e.type) {
+    case 'message_out': body = `${esc(p.channel)} → ${esc(p.to)} <span class="muted">(${esc(p.purpose)})</span><div class="bubble">${esc(p.body)}</div>`; break;
+    case 'call_placed': body = `voice → ${esc(p.to)} <span class="muted">(${esc(p.purpose)}${p.provider_sid ? ', Twilio ' + esc(p.provider_sid) : ', ' + esc(p.delivery)})</span><div class="bubble">${esc(p.opening)}</div>${p.error ? `<div class="small" style="color:var(--bad)">${esc(p.error)}</div>` : ''}`; break;
+    case 'call_completed': body = `${p.turns} turn(s)<div class="bubble in">${(p.transcript || []).filter(t => t.role !== 'note').map(t => `${t.role === 'them' ? '☎ them' : '  agent'}: ${esc(t.text)}`).join('\n')}</div>`; break;
+    case 'call_failed': body = `<span style="color:var(--bad)">${esc(p.reason)}</span>`; break;
+    case 'message_in': body = `${esc(p.channel)}${p.from ? ' from ' + esc(p.from) : ''}<div class="bubble in">${esc(p.body)}</div>`; break;
+    case 'update': body = `<span class="pill ${p.significance}">${p.significance}</span> ${esc(p.summary)}${p.state && Object.keys(p.state).length ? `<div class="state">${Object.entries(p.state).filter(([k, v]) => v).map(([k, v]) => `<span>${esc(k)}: ${esc(v)}</span>`).join('')}</div>` : ''}`; break;
+    case 'intervention_opened': body = `<span class="pill ${p.kind}">${p.kind}</span> ${esc(p.question)}`; break;
+    case 'intervention_resolved': body = `<b>${esc(p.decision)}</b>${p.text ? ' — ' + esc(p.text) : ''} <span class="muted">by ${esc(p.by)}</span>`; break;
+    case 'wait_scheduled': body = `until ${fmt(p.until)} <span class="muted">(${esc(p.reason)})</span>`; break;
+    case 'firm_request': body = `<div class="bubble">${esc(p.instruction)}</div>`; break;
+    case 'completed': body = `<b>${esc(p.outcome)}</b> ${esc(p.summary || '')}`; break;
+    case 'run_error': body = `<span style="color:var(--bad)">${esc(p.error)}</span>`; break;
+    default: body = `<span class="muted">${esc(JSON.stringify(p)).slice(0, 200)}</span>`;
+  }
+  return `<li><time>${fmt(e.ts)}</time><div><div class="t ${e.actor}">${esc(e.type.replace(/_/g, ' '))}</div>${body}</div></li>`;
+}
+
+// ------------------------------------------------------------------ review
+function renderReview() {
+  const items = state.reviews;
+  return `<section class="panel"><h2>Review queue · ${items.length} open</h2>
+    ${items.length ? items.map(i => renderReviewItem(i, false)).join('') : '<div class="empty">Nothing needs a person right now.</div>'}</section>`;
+}
+function renderReviewItem(i, compact) {
+  const draft = i.kind === 'approval' && i.payload && i.payload.action;
+  return `<div class="review ${i.kind}" data-int="${i.id}">
+    <div class="row" style="justify-content:space-between"><div><span class="pill ${i.kind}">${i.kind}</span> <b>${esc(i.contact_name)}</b> <span class="muted">· ${esc(i.matter_client)} · ${esc(i.playbook_name)}</span>${i.urgency === 'high' ? ' <span class="pill urgent">urgent</span>' : ''}</div><span class="small muted">${fmt(i.created_at)}</span></div>
+    <div class="q">${esc(i.question)}</div>
+    ${draft ? `<div class="small muted">Draft ${esc(draft.channel)} (edit before approving if you like):</div><textarea class="draft">${esc(draft.body)}</textarea>` : ''}
+    <div class="opts" style="margin-top:8px">${(i.options || []).map(o => `<button class="btn ${/close|reject|decline|handle/i.test(o) ? 'ghost' : ''} opt" data-int="${i.id}" data-decision="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+    <div class="row" style="margin-top:8px"><input type="text" class="grow answer" placeholder="Or type an answer / instruction for the agent…"><button class="btn ghost opt" data-int="${i.id}" data-decision="__text">Send answer</button></div>
+    ${!compact ? `<div class="small" style="margin-top:6px"><a href="#" class="open-eng" data-id="${i.engagement_id}">open engagement →</a></div>` : ''}
+  </div>`;
+}
+
+// ----------------------------------------------------------------- updates
+function renderUpdates() {
+  return `<section class="panel"><h2>Meaningful and urgent updates across the firm</h2>
+    <ul class="feed">${state.updates.map(u => `<li><div class="row" style="justify-content:space-between"><div><span class="pill ${u.payload.significance}">${u.payload.significance}</span> <b>${esc(u.matter_client)}</b> <span class="muted">· ${esc(u.contact_name)} · ${esc(u.playbook_name)}</span></div><span class="small muted">${fmt(u.ts)}</span></div>
+      <div style="margin-top:4px">${esc(u.payload.summary)}</div><div class="small" style="margin-top:4px"><a href="#" class="open-eng" data-id="${u.engagement_id}">open engagement →</a></div></li>`).join('') || '<div class="empty">No meaningful updates yet.</div>'}</ul></section>`;
+}
+
+// --------------------------------------------------------------- playbooks
+function renderPlaybooks() {
+  return `<section class="panel"><h2>Playbooks · what a use case declares</h2>
+    <p class="small muted">Everything below is data on a playbook class. The runtime, scheduler, channels, review queue and this dashboard do not change when one is added.</p>
+    ${state.playbooks.map(p => `<div class="pb"><h3>${esc(p.name)} <code>${p.key}</code></h3><div class="muted" style="margin-bottom:8px">${esc(p.description)}</div>
+      <div class="kv"><div>Counterparty</div><div>${esc(p.counterparty_kind)}</div><div>Channels</div><div>${p.channels.join(' → ')}</div>
+      <div>Cadence</div><div>every ${p.default_cadence_hours / 24} day(s)</div><div>Escalate after</div><div>${p.max_unanswered_attempts} unanswered attempts (runtime-enforced)</div>
+      <div>Approval rules</div><div>${p.approval_rules.length ? p.approval_rules.join(', ') : 'none'}</div>
+      <div>State it tracks</div><div>${Object.entries(p.state_fields).map(([k, v]) => `<div><code>${k}</code> <span class="muted small">${esc(v)}</span></div>`).join('')}</div></div></div>`).join('')}</section>`;
+}
+
+// ------------------------------------------------------------------- bind
+function bind() {
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => { state.view = b.dataset.view; refresh(); });
+  document.querySelectorAll('.eng').forEach(el => el.onclick = () => { state.sel = el.dataset.id; refresh(); });
+  document.querySelectorAll('.open-eng').forEach(a => a.onclick = ev => { ev.preventDefault(); state.view = 'clients'; state.sel = a.dataset.id; refresh(); });
+  document.querySelectorAll('.adv').forEach(b => b.onclick = () => act(() => api('/demo/advance', { method: 'POST', body: { hours: +b.dataset.h } }), r => `Advanced. ${r.steps_run} step(s) ran.`));
+  document.querySelectorAll('.opt').forEach(b => b.onclick = () => {
+    const box = b.closest('.review'); let decision = b.dataset.decision; let text = '';
+    if (decision === '__text') { text = box.querySelector('.answer').value.trim(); if (!text) return toast('Type an answer first.'); decision = text; }
+    const draft = box.querySelector('.draft'); const edited = draft ? draft.value : null;
+    act(() => api(`/interventions/${b.dataset.int}/resolve`, { method: 'POST', body: { decision, text, edited_body: edited } }), () => 'Sent to the agent.');
+  });
+  const go = $('#cmd-go'); if (go) go.onclick = () => { const t = $('#cmd-text').value.trim(); if (!t) return; act(() => api('/commands', { method: 'POST', body: { text: t, matter_id: $('#cmd-matter').value } }), r => { if (r.engagement_id) state.sel = r.engagement_id; return r.message; }); };
+  const ng = $('#nudge-go'); if (ng) ng.onclick = () => { const t = $('#nudge-text').value.trim(); if (!t) return; act(() => api(`/engagements/${state.sel}/nudge`, { method: 'POST', body: { instruction: t } }), () => 'Passed to the agent.'); };
+  const cx = $('#cancel-eng'); if (cx) cx.onclick = () => { if (confirm('Stop this engagement?')) act(() => api(`/engagements/${state.sel}/cancel`, { method: 'POST' }), () => 'Stopped.'); };
+  const sc = $('#sim-call'); if (sc) sc.onclick = () => { const lines = $('#sim-utt').value.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length) return toast('Type what they say.'); act(() => api(`/demo/calls/${sc.dataset.call}/simulate`, { method: 'POST', body: { utterances: lines } }), () => 'Call finished; transcript is on the timeline.'); };
+  const sn = $('#sim-noanswer'); if (sn) sn.onclick = () => act(() => api(`/demo/calls/${sn.dataset.call}/simulate`, { method: 'POST', body: { utterances: [] } }), () => 'Marked as no answer.');
+  const ss = $('#sim-send'); if (ss) ss.onclick = () => { const t = $('#sim-reply').value.trim(); if (!t) return; act(() => api('/inbound', { method: 'POST', body: { channel: ss.dataset.ch, body: t, engagement_id: state.sel } }), () => 'Reply delivered to the agent.'); };
+  document.querySelectorAll('.new-eng').forEach(b => b.onclick = () => openAssign(b.dataset.matter));
+  document.querySelectorAll('.cmd-enter, #cmd-text, #nudge-text').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') (i.id === 'cmd-text' ? $('#cmd-go') : $('#nudge-go')).click(); });
+}
+async function act(fn, msg) { try { const r = await fn(); toast(typeof msg === 'function' ? msg(r) : msg); await refresh(); } catch (e) { toast('Error: ' + e.message.slice(0, 160)); } }
+
+async function openAssign(matterId) {
+  if (!state.playbooks.length) state.playbooks = await api('/playbooks');
+  const m = state.matters.find(x => x.id === matterId);
+  const pb = prompt('Playbook key: ' + state.playbooks.map(p => p.key).join(' | '), state.playbooks[0].key); if (!pb) return;
+  const kind = state.playbooks.find(p => p.key === pb)?.counterparty_kind;
+  const cands = m.contacts.filter(c => c.kind === kind);
+  const who = prompt('Contact id: ' + cands.map(c => `${c.id} (${c.name})`).join(' | '), cands[0]?.id); if (!who) return;
+  const goal = prompt('Goal for the agent', `${state.playbooks.find(p => p.key === pb).name} with ${cands.find(c => c.id === who)?.name}`); if (!goal) return;
+  act(() => api('/engagements', { method: 'POST', body: { playbook: pb, matter_id: matterId, contact_id: who, goal } }), r => { state.sel = r.id; return 'Agent assigned.'; });
+}
+
+refresh(); setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 5000);
+</script>
+</body>
+</html>
