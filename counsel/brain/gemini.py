@@ -83,3 +83,14 @@ class GeminiBrain:
                                                response_mime_type="application/json", response_json_schema=CALL_TURN_SCHEMA))
         d = json.loads(resp.text)
         return CallTurn(say=d["say"], end_call=bool(d.get("end_call")), note=d.get("note", ""))
+
+    def interpret_command(self, text: str, contacts, playbooks, schema: dict) -> dict:
+        menu = "\n".join(f"- {c.id}: {c.name} ({c.kind}, matter {c.matter_id})" for c in contacts)
+        pbs = "\n".join(f"- {p.key}: {p.name} (counterparty: {p.counterparty_kind})" for p in playbooks)
+        resp = self.client.models.generate_content(
+            model=self.model,
+            contents=f"Someone at the firm typed: \"{text}\"\n\nContacts:\n{menu}\n\nPlaybooks:\n{pbs}\n\n"
+                     "Map it to an action (create a new engagement, nudge the running one, cancel it, or unclear), "
+                     "the playbook, the contact_id, and the instruction for the agent in the firm's words.",
+            config=types.GenerateContentConfig(temperature=0, response_mime_type="application/json", response_json_schema=schema))
+        return json.loads(resp.text)

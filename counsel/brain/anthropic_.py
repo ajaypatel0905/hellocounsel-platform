@@ -52,3 +52,16 @@ class AnthropicBrain:
                 return CallTurn(say=b.input["say"], end_call=bool(b.input.get("end_call")), note=b.input.get("note", ""))
         text = "".join(b.text for b in resp.content if b.type == "text")
         return CallTurn(say=text or "Thank you, goodbye.", end_call=not text)
+
+    def interpret_command(self, text: str, contacts, playbooks, schema: dict) -> dict:
+        menu = "\n".join(f"- {c.id}: {c.name} ({c.kind}, matter {c.matter_id})" for c in contacts)
+        pbs = "\n".join(f"- {p.key}: {p.name} (counterparty: {p.counterparty_kind})" for p in playbooks)
+        tool = {"name": "plan", "description": "The interpreted command.", "input_schema": schema}
+        resp = self.client.messages.create(
+            model=self.model, max_tokens=512, tools=[tool],
+            system="You map a law-firm staffer's instruction to a platform command. Always answer by calling plan.",
+            messages=[{"role": "user", "content": f"Instruction: \"{text}\"\n\nContacts:\n{menu}\n\nPlaybooks:\n{pbs}"}])
+        for b in resp.content:
+            if b.type == "tool_use":
+                return dict(b.input)
+        return {"action": "unclear"}

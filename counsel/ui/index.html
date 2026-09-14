@@ -23,7 +23,8 @@
   .pill.meaningful{background:#fff4e0;color:var(--warn)} .pill.urgent{background:#fdecea;color:var(--bad)} .pill.routine{background:#eef1f5;color:var(--wait)}
   .pill.question{background:#e8f4fd;color:#0b62a4} .pill.approval{background:#fff4e0;color:var(--warn)} .pill.escalation{background:#fdecea;color:var(--bad)}
   .matter{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;background:#fff}
-  .matter header{padding:0;border:0;background:none;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .matter header{padding:0;border:0;background:none;display:flex;flex-wrap:nowrap;justify-content:space-between;align-items:flex-start;gap:12px}
+  .matter header .btn{white-space:nowrap;flex-shrink:0}
   .eng{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-top:8px;cursor:pointer;background:#fbfcfd}
   .eng:hover{border-color:#b9c9da} .eng.sel{border-color:var(--accent);background:var(--accent-2)}
   .eng .who{font-weight:600} .eng .goal{grid-column:1/-1;color:var(--muted);font-size:12.5px} .eng .last{grid-column:1/-1;font-size:12.5px}
@@ -77,12 +78,22 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const fmt = iso => iso ? iso.replace('T', ' ').replace(/\+00:00$/, '') : '';
 const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2600); };
 
+function readHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('view')) state.view = h.get('view');
+  if (h.get('eng')) { state.sel = h.get('eng'); state.view = 'clients'; }
+}
+function writeHash() {
+  const h = new URLSearchParams(); if (state.view !== 'clients') h.set('view', state.view); if (state.sel && state.view === 'clients') h.set('eng', state.sel);
+  const next = '#' + h.toString(); if (location.hash !== next) history.replaceState(null, '', next || '#');
+}
 async function refresh() {
   const [status, matters, reviews] = await Promise.all([api('/status'), api('/matters'), api('/interventions')]);
   Object.assign(state, { status, matters, reviews });
   if (state.view === 'updates') state.updates = await api('/updates');
   if (state.view === 'playbooks' && !state.playbooks.length) state.playbooks = await api('/playbooks');
   if (state.sel) { try { state.detail = await api('/engagements/' + state.sel); } catch { state.sel = null; state.detail = null; } }
+  writeHash();
   render();
 }
 
@@ -172,11 +183,11 @@ function renderDemoReply(d, lastOut, ringing) {
       <div class="row" style="margin-top:6px"><button class="btn" id="sim-call" data-call="${ringing.id}">Answer the call</button><button class="btn ghost" id="sim-noanswer" data-call="${ringing.id}">No answer</button></div></div>`;
   }
   if (!lastOut) return '';
-  const ch = lastOut.payload.channel;
-  return `<div class="demo"><h2>Demo · simulate a ${esc(ch)} reply from ${esc(d.contact.name)}</h2>
-    <div class="small muted" style="margin-bottom:6px">This posts to the same inbound webhook a real provider would.</div>
+  const ch = lastOut.payload.channel === 'voice' ? 'email' : lastOut.payload.channel;
+  return `<div class="demo"><h2>Demo · simulate an inbound ${esc(ch)} from ${esc(d.contact.name)}</h2>
+    <div class="small muted" style="margin-bottom:6px">Posts to the same inbound webhook a real provider would hit.${d.status === 'blocked' ? ' The engagement is waiting on the firm, so the reply will be held until the review item is resolved.' : ''}</div>
     <textarea id="sim-reply" placeholder="Still processing, should be out in about 2 weeks."></textarea>
-    <div class="row" style="margin-top:6px"><button class="btn" id="sim-send" data-ch="${esc(ch === 'voice' ? 'email' : ch)}">Reply</button></div></div>`;
+    <div class="row" style="margin-top:6px"><button class="btn" id="sim-send" data-ch="${esc(ch)}">Reply</button></div></div>`;
 }
 function renderEvent(e) {
   const p = e.payload || {};
@@ -269,6 +280,7 @@ async function openAssign(matterId) {
   act(() => api('/engagements', { method: 'POST', body: { playbook: pb, matter_id: matterId, contact_id: who, goal } }), r => { state.sel = r.id; return 'Agent assigned.'; });
 }
 
+readHash(); window.addEventListener('hashchange', () => { readHash(); refresh(); });
 refresh(); setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 5000);
 </script>
 </body>

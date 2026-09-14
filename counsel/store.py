@@ -87,7 +87,7 @@ class Store:
         return _load(Matter, r[0]) if r else None
 
     def list_matters(self) -> list[Matter]:
-        return [_load(Matter, r[0]) for r in self._all("SELECT data FROM matters ORDER BY id")]
+        return sorted((_load(Matter, r[0]) for r in self._all("SELECT data FROM matters")), key=lambda m: m.client_name)
 
     def put_contact(self, c: Contact) -> Contact:
         self._exec("INSERT OR REPLACE INTO contacts VALUES (?,?,?)", (c.id, c.matter_id, _dump(c)))
