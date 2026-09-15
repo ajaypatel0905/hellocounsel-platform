@@ -110,7 +110,7 @@ class GeminiBrain:
                     done = True
             if done:
                 break
-            contents.append(types.Content(role="tool", parts=parts))
+            contents.append(types.Content(role="user", parts=parts))
         return actions
 
     def converse(self, ctx: CallContext, utterance: str) -> CallTurn:
