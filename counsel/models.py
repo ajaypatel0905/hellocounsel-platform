@@ -48,6 +48,7 @@ class Matter:
     incident_date: str
     owner: str                      # paralegal / case manager at the firm
     notes: str = ""
+    client_dob: str = ""
 
 
 @dataclass

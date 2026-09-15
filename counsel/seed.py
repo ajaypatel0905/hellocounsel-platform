@@ -12,9 +12,9 @@ def seed(store: Store, rt: Runtime, create_engagements: bool = True) -> None:
     if store.list_matters():
         return
     m1 = store.put_matter(Matter("mat_sharma", "Priya Sharma", "Motor vehicle collision", "2026-06-02", "Rohan Mehta",
-                                 notes="Rear-ended at a light. Neck and lower back. Treating at City General, PT at Sunrise."))
+                                 notes="Rear-ended at a light. Neck and lower back. Treating at City General, PT at Sunrise.", client_dob="1990-03-04"))
     m2 = store.put_matter(Matter("mat_reyes", "Daniel Reyes", "Premises liability (slip and fall)", "2026-07-15", "Aisha Khan",
-                                 notes="Fell in a grocery store. Fractured wrist, ortho follow-ups."))
+                                 notes="Fell in a grocery store. Fractured wrist, ortho follow-ups.", client_dob="1978-11-22"))
     c = {
         "priya": Contact("con_priya", "client", "Priya Sharma", m1.id, phone=DEMO_PHONE, email="priya.sharma@example.com",
                          preferred_channel="sms", notes="Prefers texts. Works shifts; evenings are best."),

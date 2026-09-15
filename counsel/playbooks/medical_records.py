@@ -37,7 +37,7 @@ class MedicalRecordsFollowUp(Playbook):
                      f"Could you share the current status and an expected release date?")
         if ctx.trigger == Trigger.CREATED:
             body = (f"Hello, this is the office of {m.owner} at our firm, calling about a records request for our client "
-                    f"{m.client_name}, incident date {m.incident_date}. We need complete medical records and itemized bills "
+                    f"{m.client_name}, date of birth {m.client_dob or 'on file'}, incident date {m.incident_date}. We need complete medical records and itemized bills "
                     f"for treatment from {e.params.get('date_range', 'the incident date onward')}. Could you tell me the status?")
             return [SendMessage(ch, body, "initial_request"),
                     RecordUpdate(f"Initial records request made to {c.name} via {ch}", "routine",

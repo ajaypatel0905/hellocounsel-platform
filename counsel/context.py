@@ -50,7 +50,7 @@ class StepContext:
         e, m, c = self.engagement, self.matter, self.contact
         lines = [
             f"NOW: {self.now.isoformat(timespec='minutes')}",
-            f"MATTER: {m.client_name} | {m.case_type} | incident {m.incident_date} | firm owner {m.owner}",
+            f"MATTER: {m.client_name} (DOB {m.client_dob or 'unknown'}) | {m.case_type} | incident {m.incident_date} | firm owner {m.owner}",
             f"  notes: {m.notes}" if m.notes else "",
             f"COUNTERPARTY: {c.name} ({c.kind}) phone={c.phone or '-'} email={c.email or '-'} preferred={c.preferred_channel}",
             f"  notes: {c.notes}" if c.notes else "",
@@ -81,7 +81,7 @@ class CallContext:
         e, m, c = self.engagement, self.matter, self.contact
         out = [
             f"You are on a live phone call with {c.name} ({c.kind}) on behalf of the firm (owner {m.owner}).",
-            f"Client: {m.client_name}, {m.case_type}, incident {m.incident_date}.",
+            f"Client: {m.client_name}, DOB {m.client_dob or 'unknown'}, {m.case_type}, incident {m.incident_date}.",
             f"Engagement goal: {e.goal}",
             f"Current state: {e.state}",
             f"Purpose of this call: {self.call.purpose}",
