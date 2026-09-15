@@ -177,3 +177,22 @@ def test_failed_call_wakes_agent_with_channel_event(app):
     runs = app.store.list_runs(e.id)
     assert runs[-1].trigger == Trigger.CHANNEL_EVENT
     assert app.store.get_engagement(e.id).status == S.WAITING
+
+
+def test_retry_after_agent_error_reruns_the_failed_trigger(app):
+    calls = {"n": 0}
+    real = app.runtime.brain
+    class Flaky:
+        name = "flaky"
+        def decide(self, ctx):
+            calls["n"] += 1
+            if calls["n"] == 1: raise RuntimeError("503 spike")
+            return real.decide(ctx)
+        def converse(self, ctx, u): return real.converse(ctx, u)
+    app.runtime.brain = Flaky()
+    e = app.runtime.create_engagement("bill_followup", "m1", "billing", "bill", "Rohan"); app.runtime.drain()
+    [i] = open_interventions(app, e.id)
+    app.runtime.resolve_intervention(i.id, "Retry"); app.runtime.drain()
+    e = app.store.get_engagement(e.id)
+    assert e.status == S.WAITING and e.state["stage"] == "requested"
+    assert [r.trigger for r in app.store.list_runs(e.id)] == [Trigger.CREATED, Trigger.CREATED]

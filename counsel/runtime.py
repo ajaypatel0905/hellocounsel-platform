@@ -91,7 +91,8 @@ class Runtime:
             run.error = f"{type(ex).__name__}: {ex}"
             self._event(e.id, "run_error", "system", {"error": run.error})
             self._block(e, K.ESCALATION, f"The agent hit an error and needs a hand: {run.error[:200]}",
-                        ["Retry", "I'll handle it", "Close"], urgency="high")
+                        ["Retry", "I'll handle it", "Close"], urgency="high",
+                        payload={"retry": {"trigger": trigger.value, "payload": payload}})
             run.finished_at = self.clock.now()
             self.store.put_run(run)
             self._save(e)
@@ -226,6 +227,10 @@ class Runtime:
             e.status = S.ACTIVE
         if i.kind == K.ESCALATION:
             e.unanswered_attempts = 0
+            if decision.lower() == "retry" and i.payload.get("retry"):
+                self._save(e)
+                self._wake(e, Trigger(i.payload["retry"]["trigger"]), i.payload["retry"]["payload"], now)
+                return e
         self._save(e)
         self._wake(e, Trigger.HUMAN_DECISION, {"kind": i.kind.value, "decision": decision, "text": text,
                                                 "question": i.question, "intervention_id": i.id}, now)

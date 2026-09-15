@@ -20,7 +20,8 @@ def make_brain(kind: str, **cfg) -> Brain:
         return ScriptedBrain()
     if kind == "gemini":
         from .gemini import GeminiBrain
-        return GeminiBrain(api_key=cfg["gemini_api_key"], model=cfg.get("gemini_model") or "gemini-2.5-flash")
+        return GeminiBrain(api_key=cfg["gemini_api_key"], model=cfg.get("gemini_model") or "gemini-3.6-flash",
+                           call_model=cfg.get("gemini_call_model") or None)
     if kind == "anthropic":
         from .anthropic_ import AnthropicBrain
         return AnthropicBrain(api_key=cfg.get("anthropic_api_key"), model=cfg.get("anthropic_model") or "claude-opus-5")
