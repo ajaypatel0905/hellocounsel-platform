@@ -35,10 +35,15 @@ def _gemini_schema(spec: dict) -> dict:
 
 
 class GeminiBrain:
-    def __init__(self, api_key: str, model: str = "gemini-3.6-flash", call_model: str | None = None):
+    DEFAULT_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3-flash-preview"]
+
+    def __init__(self, api_key: str, model: str = "gemini-3.6-flash", call_model: str | None = None,
+                 fallbacks: list[str] | None = None):
         self.client = genai.Client(api_key=api_key)
         self.model = model
         self.call_model = call_model or "gemini-flash-lite-latest"   # separate quota, lower latency on the phone
+        # Free-tier quotas are per model and per day. Walking a ladder keeps a demo alive when one is spent.
+        self.fallbacks = [m for m in (fallbacks or self.DEFAULT_FALLBACKS) if m != model]
         self.name = f"gemini:{model}"
         self._tools = [types.Tool(function_declarations=[
             types.FunctionDeclaration(name=s["name"], description=s["description"], parameters_json_schema=_gemini_schema(s))
@@ -48,6 +53,7 @@ class GeminiBrain:
         """429/503 are routine on the free tier. Offline steps can wait for the quota window; a live
         call turn cannot, so callers pass a small wait_budget and fall back to a holding line."""
         model = model or self.model
+        ladder = [m for m in self.fallbacks if m != model]
         waited, delay = 0.0, 1.5
         while True:
             try:
@@ -56,11 +62,13 @@ class GeminiBrain:
                 code = getattr(ex, "code", None)
                 if code not in (429, 500, 503):
                     raise
-                hint = re.search(r"retry in ([\d.]+)s", str(ex))
+                msg = str(ex)
+                daily = "PerDay" in msg
+                hint = re.search(r"retry in ([\d.]+)s", msg)
                 sleep_for = min(float(hint.group(1)) + 1 if hint else delay, wait_budget - waited)
-                if sleep_for <= 0:
-                    if model != self.call_model:   # quotas are per model; the lite model is a second budget
-                        model, waited = self.call_model, 0.0
+                if daily or sleep_for <= 0:      # this model is spent (or we can't wait): step down the ladder
+                    if ladder:
+                        model, waited, delay = ladder.pop(0), 0.0, 1.5
                         continue
                     raise
                 time.sleep(sleep_for); waited += sleep_for; delay *= 2

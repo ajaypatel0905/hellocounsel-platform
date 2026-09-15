@@ -23,6 +23,7 @@ class Settings:
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
     gemini_call_model: str = "gemini-flash-lite-latest"
+    gemini_fallback_models: str = ""
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-opus-5"
     twilio_account_sid: str = ""
@@ -38,6 +39,7 @@ class Settings:
         return cls(brain=g("BRAIN", "scripted"), clock=g("CLOCK", "sim"), db_path=g("DB_PATH", "counsel.db"),
                    gemini_api_key=g("GEMINI_API_KEY", ""), gemini_model=g("GEMINI_MODEL", "gemini-3.6-flash"),
                    gemini_call_model=g("GEMINI_CALL_MODEL", "gemini-flash-lite-latest"),
+                   gemini_fallback_models=g("GEMINI_FALLBACK_MODELS", ""),
                    anthropic_api_key=g("ANTHROPIC_API_KEY", ""), anthropic_model=g("ANTHROPIC_MODEL", "claude-opus-5"),
                    twilio_account_sid=g("TWILIO_ACCOUNT_SID", ""), twilio_key_sid=g("TWILIO_API_KEY_SID", ""),
                    twilio_key_secret=g("TWILIO_API_KEY_SECRET", ""), twilio_from=g("TWILIO_FROM_NUMBER", ""),
@@ -65,7 +67,7 @@ def build(settings: Settings | None = None, store: Store | None = None) -> App:
     s = settings or Settings.from_env()
     store = store or Store(s.db_path)
     clock = SimClock() if s.clock == "sim" else RealClock()
-    brain = make_brain(s.brain, gemini_api_key=s.gemini_api_key, gemini_model=s.gemini_model, gemini_call_model=s.gemini_call_model,
+    brain = make_brain(s.brain, gemini_api_key=s.gemini_api_key, gemini_model=s.gemini_model, gemini_call_model=s.gemini_call_model, gemini_fallback_models=s.gemini_fallback_models,
                        anthropic_api_key=s.anthropic_api_key or None, anthropic_model=s.anthropic_model)
     if s.voice_is_real:
         transport = TwilioConversationRelayTransport(s.twilio_account_sid, s.twilio_key_sid, s.twilio_key_secret,
