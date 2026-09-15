@@ -9,14 +9,17 @@ ConversationRelay, simulated email/SMS on the same interface, a review queue, an
 
 Read [DESIGN.md](DESIGN.md) for the reasoning. This file is how to run it.
 
-## Run it (no API keys needed)
+## Run it
 
 ```bash
 uv venv --python 3.12 .venv && uv pip install -e ".[dev]"
-cp .env.example .env                 # defaults: scripted brain, simulated clock, simulated channels
+cp .env.example .env                 # add GEMINI_API_KEY (free key from https://aistudio.google.com/apikey)
 .venv/bin/uvicorn counsel.api:create_app --factory --port 8010
 open http://localhost:8010
 ```
+
+Gemini makes every decision and speaks every call turn. Set `BRAIN=scripted` to run with no key at all
+(deterministic offline policy per playbook; it is what the tests use).
 
 The dashboard seeds two matters and four engagements. Use the demo controls to advance the
 simulated clock, answer the ringing call as the hospital clerk, reply as the client, and resolve
@@ -40,7 +43,8 @@ Everything is a flag in `.env`.
 
 | Setting | Values | What changes |
 |---|---|---|
-| `BRAIN` | `scripted` (default), `gemini`, `anthropic` | Who decides. Scripted is deterministic and free. |
+| `BRAIN` | `gemini` (default), `anthropic`, `scripted` | Who decides. Scripted is the deterministic offline stand-in used by tests. |
+| `GEMINI_MODEL`, `GEMINI_CALL_MODEL`, `GEMINI_FALLBACK_MODELS` | model ids | Step model, a lighter model for live call turns, and the ladder tried when a model is out of quota or overloaded. Free-tier quotas are per model per day. |
 | `CLOCK` | `sim` (default), `real` | `sim` lets the dashboard move time. `real` runs a background worker that ticks every second. |
 | `TWILIO_*` + `PUBLIC_BASE_URL` | set all five | Voice calls become real outbound calls via ConversationRelay. Unset, the voice channel is simulated. |
 

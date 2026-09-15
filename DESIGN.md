@@ -72,8 +72,9 @@ sends the approved (possibly edited) draft itself before waking the agent.
 ## What is real vs stubbed
 
 Real: the runtime, scheduler, event log, policies, review queue, three playbooks, the dashboard,
-the command box, the Gemini and Claude brains, outbound voice calls through Twilio
-ConversationRelay including live turn-taking and transcript capture.
+the command box, the Gemini brain (default; every decision and every live call turn), a Claude brain
+behind the same interface, and outbound voice calls through Twilio ConversationRelay including live
+turn-taking and transcript capture.
 
 Simulated: email and SMS delivery (recorded in an outbox; replies injected through the same
 inbound endpoint a provider webhook would hit), the counterparty on voice when Twilio is not
