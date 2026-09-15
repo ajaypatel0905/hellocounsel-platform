@@ -94,7 +94,23 @@ async function refresh() {
   if (state.view === 'playbooks' && !state.playbooks.length) state.playbooks = await api('/playbooks');
   if (state.sel) { try { state.detail = await api('/engagements/' + state.sel); } catch { state.sel = null; state.detail = null; } }
   writeHash();
+  if (typing()) { state.dirty = true; return; }   // never yank the page out from under someone mid-sentence
   render();
+}
+function typing() { const a = document.activeElement; return a && ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName) && a.value !== ''; }
+function snapshotInputs() {
+  const m = {};
+  document.querySelectorAll('#main input[type=text], #main textarea, #main select').forEach(el => {
+    const key = el.id || (el.closest('[data-int]') ? el.closest('[data-int]').dataset.int + ':' + el.className : null);
+    if (key && el.value) m[key] = el.value;
+  });
+  return m;
+}
+function restoreInputs(m) {
+  document.querySelectorAll('#main input[type=text], #main textarea, #main select').forEach(el => {
+    const key = el.id || (el.closest('[data-int]') ? el.closest('[data-int]').dataset.int + ':' + el.className : null);
+    if (key && m[key] !== undefined && !(el.classList.contains('draft') && el.dataset.fresh)) el.value = m[key];
+  });
 }
 
 function render() {
@@ -104,7 +120,10 @@ function render() {
   const b = $('#rev-badge'); b.hidden = !state.reviews.length; b.textContent = state.reviews.length;
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
   const main = $('#main'); main.className = state.view === 'clients' ? '' : 'single';
+  const typed = snapshotInputs();
   main.innerHTML = ({ clients: renderClients, review: renderReview, updates: renderUpdates, playbooks: renderPlaybooks })[state.view]();
+  restoreInputs(typed);
+  state.dirty = false;
   bind();
 }
 
@@ -267,7 +286,7 @@ function bind() {
   document.querySelectorAll('.new-eng').forEach(b => b.onclick = () => openAssign(b.dataset.matter));
   document.querySelectorAll('.cmd-enter, #cmd-text, #nudge-text').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') (i.id === 'cmd-text' ? $('#cmd-go') : $('#nudge-go')).click(); });
 }
-async function act(fn, msg) { try { const r = await fn(); toast(typeof msg === 'function' ? msg(r) : msg); await refresh(); } catch (e) { toast('Error: ' + e.message.slice(0, 160)); } }
+async function act(fn, msg) { try { const r = await fn(); toast(typeof msg === 'function' ? msg(r) : msg); document.activeElement && document.activeElement.blur(); document.querySelectorAll('#main input[type=text], #main textarea').forEach(el => el.value = ''); await refresh(); } catch (e) { toast('Error: ' + e.message.slice(0, 160)); } }
 
 async function openAssign(matterId) {
   if (!state.playbooks.length) state.playbooks = await api('/playbooks');
@@ -281,7 +300,8 @@ async function openAssign(matterId) {
 }
 
 readHash(); window.addEventListener('hashchange', () => { readHash(); refresh(); });
-refresh(); setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 5000);
+document.addEventListener('focusout', () => { if (state.dirty) setTimeout(() => { if (!typing()) render(); }, 150); });
+refresh(); setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 8000);
 </script>
 </body>
 </html>
