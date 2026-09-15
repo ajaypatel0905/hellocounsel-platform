@@ -5,7 +5,9 @@ from .models import Contact, Matter
 from .runtime import Runtime
 from .store import Store
 
-DEMO_PHONE = "+15550100000"   # the verified trial number; every real call in the demo lands here
+import os
+
+DEMO_PHONE = os.environ.get("DEMO_PHONE", "+15550100000")   # on a Twilio trial this must be a verified number
 
 
 def seed(store: Store, rt: Runtime, create_engagements: bool = True) -> None:
