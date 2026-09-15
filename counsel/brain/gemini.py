@@ -47,10 +47,11 @@ class GeminiBrain:
     def _generate(self, model: str | None = None, wait_budget: float = 60.0, **kwargs):
         """429/503 are routine on the free tier. Offline steps can wait for the quota window; a live
         call turn cannot, so callers pass a small wait_budget and fall back to a holding line."""
+        model = model or self.model
         waited, delay = 0.0, 1.5
         while True:
             try:
-                return self.client.models.generate_content(model=model or self.model, **kwargs)
+                return self.client.models.generate_content(model=model, **kwargs)
             except errors.APIError as ex:
                 code = getattr(ex, "code", None)
                 if code not in (429, 500, 503):
@@ -58,6 +59,9 @@ class GeminiBrain:
                 hint = re.search(r"retry in ([\d.]+)s", str(ex))
                 sleep_for = min(float(hint.group(1)) + 1 if hint else delay, wait_budget - waited)
                 if sleep_for <= 0:
+                    if model != self.call_model:   # quotas are per model; the lite model is a second budget
+                        model, waited = self.call_model, 0.0
+                        continue
                     raise
                 time.sleep(sleep_for); waited += sleep_for; delay *= 2
 
@@ -69,13 +73,19 @@ class GeminiBrain:
         config = types.GenerateContentConfig(
             system_instruction=ctx.playbook.system_prompt(), tools=self._tools, temperature=0.2,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
+        nudged = False
         for _ in range(MAX_TOOL_ROUNDS):
             resp = self._generate(contents=contents, config=config)
             cand = resp.candidates[0]
             contents.append(cand.content)
             calls = resp.function_calls or []
             if not calls:
-                break
+                if actions or nudged:
+                    break
+                nudged = True   # answered in prose; ask once more for tool calls
+                contents.append(types.Content(role="user", parts=[types.Part.from_text(
+                    text="Act through the tools only. Call the tools now and finish with wait_until, request_human or complete.")]))
+                continue
             parts, done = [], False
             for fc in calls:
                 args = dict(fc.args or {})
