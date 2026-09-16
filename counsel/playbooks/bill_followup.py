@@ -63,6 +63,7 @@ class BillFollowUp(Playbook):
                 return [SendMessage(ch, ask, "follow_up"), WaitUntil(self.default_cadence_hours)]
             return shared_human_decision(ctx, ask) or [WaitUntil(self.default_cadence_hours)]
         if ctx.trigger == Trigger.FIRM_REQUEST:
+            ch = ctx.payload.get("channel") or ch
             return [SendMessage(ch, f"Regarding {m.client_name}'s account: {ctx.payload.get('instruction', '')}", "firm_request"),
                     WaitUntil(self.default_cadence_hours)]
         return [WaitUntil(self.default_cadence_hours)]

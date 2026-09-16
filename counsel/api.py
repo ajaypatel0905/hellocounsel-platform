@@ -43,7 +43,7 @@ class NewEngagement(BaseModel):
 
 
 class Nudge(BaseModel):
-    instruction: str
+    instruction: str; channel: str | None = None
 
 
 class Resolve(BaseModel):
@@ -211,7 +211,7 @@ def create_app(app: App | None = None, do_seed: bool = True) -> FastAPI:
     @api.post("/api/engagements/{eid}/nudge")
     def nudge(eid: str, body: Nudge):
         try:
-            rt.nudge(eid, body.instruction)
+            rt.nudge(eid, body.instruction, channel=body.channel)
         except (KeyError, ValueError) as ex:
             raise HTTPException(400, str(ex))
         rt.drain()

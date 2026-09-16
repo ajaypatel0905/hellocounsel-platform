@@ -196,3 +196,12 @@ def test_retry_after_agent_error_reruns_the_failed_trigger(app):
     e = app.store.get_engagement(e.id)
     assert e.status == S.WAITING and e.state["stage"] == "requested"
     assert [r.trigger for r in app.store.list_runs(e.id)] == [Trigger.CREATED, Trigger.CREATED]
+
+
+def test_firm_request_can_force_a_channel(app):
+    rt = app.runtime
+    e = rt.create_engagement("bill_followup", "m1", "billing", "bill", "Rohan"); rt.drain()
+    assert not app.store.list_calls(e.id)
+    rt.nudge(e.id, "Call them and ask for a date", channel="voice"); rt.drain()
+    assert app.store.list_calls(e.id), "channel hint should have produced a call"
+    assert app.store.list_runs(e.id)[-1].trigger == Trigger.FIRM_REQUEST

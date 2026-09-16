@@ -48,15 +48,15 @@ class Runtime:
         self._wake(e, Trigger.CREATED, {}, now)
         return e
 
-    def nudge(self, engagement_id: str, instruction: str, by: str = "firm") -> Engagement:
+    def nudge(self, engagement_id: str, instruction: str, by: str = "firm", channel: str | None = None) -> Engagement:
         e = self._get(engagement_id)
-        self._event(e.id, "firm_request", "human", {"instruction": instruction, "by": by})
+        self._event(e.id, "firm_request", "human", {"instruction": instruction, "by": by, "channel": channel})
         if e.status == S.BLOCKED:
             return e  # held; the open intervention comes first
         if e.status in (S.COMPLETED, S.CANCELLED):
             raise ValueError("engagement is closed")
         self.store.cancel_pending_wakeups(e.id, self.clock.now())
-        self._wake(e, Trigger.FIRM_REQUEST, {"instruction": instruction}, self.clock.now())
+        self._wake(e, Trigger.FIRM_REQUEST, {"instruction": instruction, "channel": channel}, self.clock.now())
         return e
 
     def cancel(self, engagement_id: str, reason: str = "") -> Engagement:

@@ -204,7 +204,8 @@ function renderDetail(d) {
       ${d.outcome ? `<div>Outcome</div><div>${esc(d.outcome)}</div>` : ''}
     </div>
     ${open ? renderReviewItem({ ...open, contact_name: d.contact.name, matter_client: d.matter_client, playbook_name: d.playbook_name }, true) : ''}
-    ${live ? `<div class="row" style="margin-top:12px"><input type="text" id="nudge-text" class="grow" placeholder="Ask the agent to do something on this engagement…"><button class="btn" id="nudge-go">Send</button><button class="btn warn" id="cancel-eng">Stop</button></div>` : ''}
+    ${live ? `<div class="row" style="margin-top:12px"><input type="text" id="nudge-text" class="grow" placeholder="Ask the agent to do something on this engagement…"><button class="btn" id="nudge-go">Send</button>${d.contact.phone && d.playbook.channels.includes('voice') ? `<button class="btn ghost" id="call-now" title="Force a voice call on the next step">☎ Call now</button>` : ''}<button class="btn warn" id="cancel-eng">Stop</button></div>
+    ${d.status === 'blocked' ? `<div class="hint">This engagement is waiting on the review item above. Instructions you send are held until it is resolved.</div>` : ''}` : ''}
     ${live && state.status.voice_transport === 'simulated' || live && lastOut ? renderDemoReply(d, lastOut, ringing) : ''}
     <h2 style="margin-top:18px">Timeline</h2>
     <ul class="timeline">${[...d.events].reverse().map(renderEvent).join('')}</ul>
@@ -295,7 +296,9 @@ function bind() {
     act(() => api(`/interventions/${b.dataset.int}/resolve`, { method: 'POST', body: { decision, text, edited_body: edited } }), () => 'Sent to the agent.');
   });
   const go = $('#cmd-go'); if (go) go.onclick = () => { const t = $('#cmd-text').value.trim(); if (!t) return; act(() => api('/commands', { method: 'POST', body: { text: t, matter_id: $('#cmd-matter').value } }), r => { if (r.engagement_id) state.sel = r.engagement_id; return r.message; }); };
-  const ng = $('#nudge-go'); if (ng) ng.onclick = () => { const t = $('#nudge-text').value.trim(); if (!t) return; act(() => api(`/engagements/${state.sel}/nudge`, { method: 'POST', body: { instruction: t } }), () => 'Passed to the agent.'); };
+  const heldMsg = r => r.status === 'blocked' ? 'Held: the agent is waiting on the review item first.' : 'Passed to the agent.';
+  const ng = $('#nudge-go'); if (ng) ng.onclick = () => { const t = $('#nudge-text').value.trim(); if (!t) return; act(() => api(`/engagements/${state.sel}/nudge`, { method: 'POST', body: { instruction: t } }), heldMsg); };
+  const cn = $('#call-now'); if (cn) cn.onclick = () => act(() => api(`/engagements/${state.sel}/nudge`, { method: 'POST', body: { instruction: 'Call now and ask for a status update on this request; get a concrete date.', channel: 'voice' } }), r => r.status === 'blocked' ? heldMsg(r) : 'Calling now.');
   const cx = $('#cancel-eng'); if (cx) cx.onclick = () => { if (confirm('Stop this engagement?')) act(() => api(`/engagements/${state.sel}/cancel`, { method: 'POST' }), () => 'Stopped.'); };
   const sc = $('#sim-call'); if (sc) sc.onclick = () => { const lines = $('#sim-utt').value.split('\n').map(x => x.trim()).filter(Boolean); if (!lines.length) return toast('Type what they say.'); act(() => api(`/demo/calls/${sc.dataset.call}/simulate`, { method: 'POST', body: { utterances: lines } }), () => 'Call finished; transcript is on the timeline.'); };
   const sn = $('#sim-noanswer'); if (sn) sn.onclick = () => act(() => api(`/demo/calls/${sn.dataset.call}/simulate`, { method: 'POST', body: { utterances: [] } }), () => 'Marked as no answer.');

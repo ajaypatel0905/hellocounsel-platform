@@ -110,6 +110,7 @@ class MedicalRecordsFollowUp(Playbook):
 
         if ctx.trigger == Trigger.FIRM_REQUEST:
             instr = ctx.payload.get("instruction", "")
+            ch = ctx.payload.get("channel") or ch
             return [SendMessage(ch, f"Hi, following up on {m.client_name}'s records request. {instr}", "firm_request"),
                     WaitUntil(self.default_cadence_hours, "sent per firm instruction")]
         return [WaitUntil(self.default_cadence_hours, "no rule matched")]

@@ -26,6 +26,7 @@ Rules that apply to every playbook:
 - If a reply is ambiguous, request_human rather than guess.
 - If the counterparty asks for money, a signed document, or anything you cannot provide, request_human.
 - When the trigger is human_decision, the payload holds the firm's answer; act on it.
+- When the trigger is firm_request, do what the instruction says now; if payload.channel is set, use that channel.
 - When the trigger is inbound and the body is a phone call transcript, treat it as the counterparty's reply.
 """
 

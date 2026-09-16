@@ -96,6 +96,7 @@ class ClientCheckIn(Playbook):
 
         if ctx.trigger == Trigger.FIRM_REQUEST:
             instr = ctx.payload.get("instruction", "")
+            ch = ctx.payload.get("channel") or ch
             return [SendMessage(ch, f"Hi {first}, {m.owner}'s office here. {instr}", "firm_request"),
                     WaitUntil(72, "sent per firm instruction")]
         return [WaitUntil(self.default_cadence_hours, "no rule matched")]
