@@ -1,0 +1,27 @@
+# fly launch --no-deploy --copy-config ; fly volumes create data --size 1 ; fly secrets set ... ; fly deploy
+app = "hellocounsel-agents"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  DB_PATH = "/data/counsel.db"
+  CLOCK = "sim"
+  BRAIN = "gemini"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"      # the scheduler and Twilio callbacks need the machine up
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -134,3 +134,20 @@ Write a `Playbook` subclass, register it, done. The runtime, scheduler, channels
 dashboard and command box pick it up. See DESIGN.md → "How a new use case fits" for a worked example,
 and `tests/test_runtime.py::test_new_playbook_is_a_file_not_a_runtime_change` for a fourth playbook
 defined and exercised inside a test.
+
+## Deploying
+
+The app is one process: HTTP, the Twilio websocket, and the scheduler worker. It needs a host that keeps
+the process up and supports websockets, plus a small volume for SQLite. `Dockerfile` and `fly.toml` are included.
+
+```bash
+fly launch --no-deploy --copy-config --name <app-name>
+fly volumes create data --size 1 --region sin
+fly secrets set GEMINI_API_KEY=... TWILIO_ACCOUNT_SID=... TWILIO_API_KEY_SID=... TWILIO_API_KEY_SECRET=... \
+  TWILIO_FROM_NUMBER=+1... DEMO_PHONE=+91... PUBLIC_BASE_URL=https://<app-name>.fly.dev \
+  DASHBOARD_USER=firm DASHBOARD_PASSWORD=<something>
+fly deploy
+```
+
+`DASHBOARD_PASSWORD` puts HTTP basic auth on the dashboard and API. Twilio callbacks under `/voice/` are
+exempt. The database resets if the volume is recreated; the app re-seeds on an empty database.

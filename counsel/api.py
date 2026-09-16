@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -11,6 +12,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+import base64
+import secrets
+
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -19,11 +23,19 @@ from pydantic import BaseModel
 from . import playbooks
 from .clock import SimClock
 from .commands import CommandService
-from .models import EngagementStatus as S
+from .models import Contact, EngagementStatus as S, Matter, new_id
 from .seed import seed
 from .wiring import App, build
 
 UI = Path(__file__).parent / "ui" / "index.html"
+
+
+class NewMatter(BaseModel):
+    client_name: str; case_type: str; incident_date: str; owner: str; notes: str = ""; client_dob: str = ""
+
+
+class NewContact(BaseModel):
+    matter_id: str; kind: str; name: str; phone: str = ""; email: str = ""; preferred_channel: str = "email"; notes: str = ""
 
 
 class NewEngagement(BaseModel):
@@ -88,15 +100,28 @@ def create_app(app: App | None = None, do_seed: bool = True) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_):
         ctx.runtime.drain()
-        t = None
-        if not isinstance(ctx.clock, SimClock):
-            t = threading.Thread(target=worker, daemon=True); t.start()
+        # The worker runs in both clock modes: with a sim clock nothing becomes due on its own, but real
+        # inbound events (a Twilio call ending) still need to be processed promptly.
+        threading.Thread(target=worker, daemon=True).start()
         yield
         stop.set()
 
     api = FastAPI(title="HelloCounsel long-running agents", lifespan=lifespan)
     api.state.ctx = ctx
     st, rt = ctx.store, ctx.runtime
+
+    if ctx.settings.dashboard_password:
+        expected = base64.b64encode(f"{ctx.settings.dashboard_user}:{ctx.settings.dashboard_password}".encode()).decode()
+
+        @api.middleware("http")
+        async def basic_auth(request: Request, call_next):
+            if request.url.path.startswith("/voice/"):          # Twilio callbacks carry no credentials
+                return await call_next(request)
+            header = request.headers.get("authorization", "")
+            if header.startswith("Basic ") and secrets.compare_digest(header[6:], expected):
+                return await call_next(request)
+            return Response("Sign in to the firm dashboard", status_code=401,
+                            headers={"WWW-Authenticate": 'Basic realm="Agent Desk"'})
 
     # ----------------------------------------------------------------- views
     def eng_view(e) -> dict:
@@ -121,6 +146,7 @@ def create_app(app: App | None = None, do_seed: bool = True) -> FastAPI:
     def status():
         return {"brain": rt.brain.name, "clock": "sim" if isinstance(ctx.clock, SimClock) else "real",
                 "now": jsonable(ctx.clock.now()), "voice_transport": ctx.voice_transport,
+                "demo_phone": os.environ.get("DEMO_PHONE", ""),
                 "pending_wakeups": st.count_pending_wakeups(), "open_reviews": len(st.list_interventions(status="open")),
                 "channels": ctx.channels.names()}
 
@@ -140,6 +166,24 @@ def create_app(app: App | None = None, do_seed: bool = True) -> FastAPI:
                         "contacts": jsonable(st.list_contacts(m.id)),
                         "needs_review": sum(1 for e in engs if e.status == S.BLOCKED)})
         return out
+
+    @api.post("/api/matters")
+    def create_matter(body: NewMatter):
+        m = st.put_matter(Matter(new_id("mat"), body.client_name, body.case_type, body.incident_date, body.owner,
+                                 body.notes, body.client_dob))
+        return jsonable(m)
+
+    @api.post("/api/contacts")
+    def create_contact(body: NewContact):
+        if not st.get_matter(body.matter_id):
+            raise HTTPException(404, "matter")
+        if body.kind not in ("client", "provider", "insurer"):
+            raise HTTPException(400, "kind must be client, provider or insurer")
+        if not (body.phone or body.email):
+            raise HTTPException(400, "a phone or an email is required")
+        c = st.put_contact(Contact(new_id("con"), body.kind, body.name, body.matter_id, body.phone, body.email,
+                                   body.preferred_channel, body.notes))
+        return jsonable(c)
 
     @api.get("/api/engagements/{eid}")
     def get_engagement(eid: str):

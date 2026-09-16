@@ -49,7 +49,14 @@
   code{background:#eef1f5;padding:1px 5px;border-radius:4px;font-size:12px}
   .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#17202a;color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:.2s;pointer-events:none;max-width:80vw}
   .toast.show{opacity:1}
-  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .banner{background:#fff8e6;border-bottom:1px solid #f1e2b6;color:#6b5412;padding:8px 24px;font-size:12.5px}
+  .overlay{position:fixed;inset:0;background:rgba(23,32,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;z-index:10}
+  .modal{background:#fff;border-radius:12px;width:min(560px,100%);padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+  .modal h3{margin-bottom:12px} .form{display:grid;grid-template-columns:1fr 1fr;gap:10px} .form .full{grid-column:1/-1}
+  .form label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px}
+  .form input,.form select,.form textarea{width:100%} .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  @media (max-width:900px){main{grid-template-columns:1fr} .form{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -63,7 +70,9 @@
     <button data-view="playbooks">Playbooks</button>
   </nav>
 </header>
+<div class="banner" id="banner" hidden></div>
 <main id="main"></main>
+<div id="modal-root"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -82,6 +91,7 @@ function readHash() {
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get('view')) state.view = h.get('view');
   if (h.get('eng')) { state.sel = h.get('eng'); state.view = 'clients'; }
+  if (h.get('assign')) state.pendingAssign = h.get('assign');
 }
 function writeHash() {
   const h = new URLSearchParams(); if (state.view !== 'clients') h.set('view', state.view); if (state.sel && state.view === 'clients') h.set('eng', state.sel);
@@ -118,6 +128,11 @@ function render() {
   $('#chips').innerHTML = `<span class="chip">brain: ${esc(s.brain)}</span><span class="chip">voice: ${esc(s.voice_transport)}</span>
     <span class="chip">${s.clock === 'sim' ? 'sim time' : 'now'}: ${fmt(s.now)}</span><span class="chip">${s.pending_wakeups} scheduled wake-ups</span>`;
   const b = $('#rev-badge'); b.hidden = !state.reviews.length; b.textContent = state.reviews.length;
+  const bn = $('#banner');
+  if (s.voice_transport && s.voice_transport.startsWith('twilio')) {
+    bn.hidden = false;
+    bn.innerHTML = `<b>Live voice is on.</b> Contacts whose preferred channel is voice get a real phone call from the agent. This Twilio account is a trial, so only verified numbers ring${s.demo_phone ? ` (the seeded contacts resolve to ${esc(s.demo_phone)})` : ''}; a call to any other number fails and the agent records it and retries later.`;
+  } else { bn.hidden = true; }
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('active', x.dataset.view === state.view));
   const main = $('#main'); main.className = state.view === 'clients' ? '' : 'single';
   const typed = snapshotInputs();
@@ -125,6 +140,7 @@ function render() {
   restoreInputs(typed);
   state.dirty = false;
   bind();
+  if (state.pendingAssign) { const id = state.pendingAssign; state.pendingAssign = null; openAssign(id); }
 }
 
 // ---------------------------------------------------------------- clients
@@ -138,7 +154,8 @@ function renderClients() {
           <input type="text" id="cmd-text" class="grow" placeholder='e.g. "call City General again and ask for a release date"'>
           <button class="btn" id="cmd-go">Go</button>
         </div>
-        <div class="small muted" style="margin-top:6px">Creates a new engagement or hands an instruction to the one already running.</div>
+        <div class="row" style="margin-top:6px;justify-content:space-between"><span class="small muted">Creates a new engagement or hands an instruction to the one already running.</span>
+          <button class="btn ghost" id="add-matter">+ Add client matter</button></div>
       </div>
       ${state.matters.map(renderMatter).join('') || '<div class="empty">No matters yet.</div>'}
       ${state.status.clock === 'sim' ? demoClock() : ''}
@@ -148,7 +165,7 @@ function renderClients() {
 function renderMatter(m) {
   return `<div class="matter"><header><div><h3>${esc(m.client_name)} <span class="muted small">· ${esc(m.case_type)} · incident ${esc(m.incident_date)}</span></h3>
       <div class="small muted">owner ${esc(m.owner)}${m.needs_review ? ` · <b style="color:var(--bad)">${m.needs_review} need${m.needs_review > 1 ? '' : 's'} review</b>` : ''}</div></div>
-      <button class="btn ghost small new-eng" data-matter="${m.id}">+ Assign agent</button></header>
+      <div class="row" style="flex-wrap:nowrap"><button class="btn ghost new-contact" data-matter="${m.id}">+ Contact</button><button class="btn new-eng" data-matter="${m.id}">+ Assign agent</button></div></header>
     ${m.engagements.map(e => renderEngCard(e)).join('') || '<div class="small muted" style="margin-top:8px">No agents assigned on this matter.</div>'}
   </div>`;
 }
@@ -284,19 +301,79 @@ function bind() {
   const sn = $('#sim-noanswer'); if (sn) sn.onclick = () => act(() => api(`/demo/calls/${sn.dataset.call}/simulate`, { method: 'POST', body: { utterances: [] } }), () => 'Marked as no answer.');
   const ss = $('#sim-send'); if (ss) ss.onclick = () => { const t = $('#sim-reply').value.trim(); if (!t) return; act(() => api('/inbound', { method: 'POST', body: { channel: ss.dataset.ch, body: t, engagement_id: state.sel } }), () => 'Reply delivered to the agent.'); };
   document.querySelectorAll('.new-eng').forEach(b => b.onclick = () => openAssign(b.dataset.matter));
+  document.querySelectorAll('.new-contact').forEach(b => b.onclick = () => openAddContact(b.dataset.matter));
+  const am = $('#add-matter'); if (am) am.onclick = openAddMatter;
   document.querySelectorAll('.cmd-enter, #cmd-text, #nudge-text').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') (i.id === 'cmd-text' ? $('#cmd-go') : $('#nudge-go')).click(); });
 }
 async function act(fn, msg) { try { const r = await fn(); toast(typeof msg === 'function' ? msg(r) : msg); document.activeElement && document.activeElement.blur(); document.querySelectorAll('#main input[type=text], #main textarea').forEach(el => el.value = ''); await refresh(); } catch (e) { toast('Error: ' + e.message.slice(0, 160)); } }
 
+function modal(title, bodyHtml, onSubmit, submitLabel = 'Save') {
+  const root = $('#modal-root');
+  root.innerHTML = `<div class="overlay"><div class="modal"><h3>${esc(title)}</h3><form class="form" id="mform">${bodyHtml}
+    <div class="actions full"><button type="button" class="btn ghost" id="mcancel">Cancel</button><button type="submit" class="btn">${esc(submitLabel)}</button></div></form></div></div>`;
+  const close = () => { root.innerHTML = ''; };
+  $('#mcancel').onclick = close;
+  root.querySelector('.overlay').onclick = e => { if (e.target === e.currentTarget) close(); };
+  $('#mform').onsubmit = async e => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.target).entries()); try { await onSubmit(data); close(); } catch (err) { toast('Error: ' + err.message.slice(0, 200)); } };
+  const first = root.querySelector('input,select,textarea'); if (first) first.focus();
+  return { close, root };
+}
+const field = (name, label, attrs = '', full = false, tag = 'input') => `<div class="${full ? 'full' : ''}"><label>${label}</label>${tag === 'input' ? `<input name="${name}" type="text" ${attrs}>` : tag === 'textarea' ? `<textarea name="${name}" ${attrs}></textarea>` : `<select name="${name}" ${attrs}></select>`}</div>`;
+
+function openAddMatter() {
+  modal('Add a client matter', field('client_name', 'Client name', 'required placeholder="Full name"') + field('client_dob', 'Date of birth', 'placeholder="YYYY-MM-DD"')
+    + field('case_type', 'Case type', 'required placeholder="Motor vehicle collision"') + field('incident_date', 'Incident date', 'required placeholder="YYYY-MM-DD"')
+    + field('owner', 'Firm owner (case manager)', 'required placeholder="Who at the firm owns this case"', true) + field('notes', 'Notes', 'placeholder="Anything the agent should know about the case"', true, 'textarea'),
+    async d => { const m = await api('/matters', { method: 'POST', body: d }); toast(`Added ${m.client_name}.`); await refresh(); }, 'Add matter');
+}
+function contactFields(defaults = {}) {
+  return field('name', 'Name', 'required placeholder="City General Hospital (Records)"', true)
+    + `<div><label>Kind</label><select name="kind"><option value="provider">provider</option><option value="client">client</option><option value="insurer">insurer</option></select></div>`
+    + `<div><label>Preferred channel</label><select name="preferred_channel"><option value="voice">voice (real call)</option><option value="email">email (simulated)</option><option value="sms">sms (simulated)</option></select></div>`
+    + field('phone', 'Phone (E.164)', `placeholder="+14155550123" value="${esc(defaults.phone || '')}"`) + field('email', 'Email', 'placeholder="records@provider.example"')
+    + field('notes', 'Notes', 'placeholder="Hours, department, quirks the agent should know"', true, 'textarea')
+    + `<div class="hint full">On this Twilio trial account only verified numbers can be called.${state.status.demo_phone ? ` The verified demo number is ${esc(state.status.demo_phone)}.` : ''}</div>`;
+}
+function openAddContact(matterId) {
+  const m = state.matters.find(x => x.id === matterId);
+  modal(`Add a contact on ${m.client_name}`, contactFields({ phone: state.status.demo_phone || '' }),
+    async d => { const c = await api('/contacts', { method: 'POST', body: { ...d, matter_id: matterId } }); toast(`Added ${c.name}.`); await refresh(); }, 'Add contact');
+}
 async function openAssign(matterId) {
   if (!state.playbooks.length) state.playbooks = await api('/playbooks');
   const m = state.matters.find(x => x.id === matterId);
-  const pb = prompt('Playbook key: ' + state.playbooks.map(p => p.key).join(' | '), state.playbooks[0].key); if (!pb) return;
-  const kind = state.playbooks.find(p => p.key === pb)?.counterparty_kind;
-  const cands = m.contacts.filter(c => c.kind === kind);
-  const who = prompt('Contact id: ' + cands.map(c => `${c.id} (${c.name})`).join(' | '), cands[0]?.id); if (!who) return;
-  const goal = prompt('Goal for the agent', `${state.playbooks.find(p => p.key === pb).name} with ${cands.find(c => c.id === who)?.name}`); if (!goal) return;
-  act(() => api('/engagements', { method: 'POST', body: { playbook: pb, matter_id: matterId, contact_id: who, goal } }), r => { state.sel = r.id; return 'Agent assigned.'; });
+  const pbOpts = state.playbooks.map(p => `<option value="${p.key}">${esc(p.name)} · needs a ${p.counterparty_kind}</option>`).join('');
+  const body = `<div class="full"><label>Playbook</label><select name="playbook" id="f-pb">${pbOpts}</select><div class="hint" id="f-pbdesc"></div></div>
+    <div class="full"><label>Counterparty</label><select name="contact_id" id="f-contact"></select></div>
+    <div id="f-newcontact" class="full" hidden><div class="form" style="margin-top:4px">${contactFields({ phone: state.status.demo_phone || '' })}</div></div>
+    ${field('goal', 'Goal for the agent', 'required', true, 'textarea')}
+    <div id="f-params" class="full"></div>`;
+  modal(`Assign an agent on ${m.client_name}`, body, async d => {
+    let contactId = d.contact_id;
+    if (contactId === '__new') {
+      const c = await api('/contacts', { method: 'POST', body: { matter_id: matterId, kind: d.kind, name: d.name, phone: d.phone, email: d.email, preferred_channel: d.preferred_channel, notes: d.notes } });
+      contactId = c.id;
+    }
+    const params = {}; if (d.date_range) params.date_range = d.date_range; if (d.end_date) params.end_date = d.end_date;
+    const e = await api('/engagements', { method: 'POST', body: { playbook: d.playbook, matter_id: matterId, contact_id: contactId, goal: d.goal, params } });
+    state.sel = e.id; toast('Agent assigned and first step run.'); await refresh();
+  }, 'Assign agent');
+  const pbSel = $('#f-pb'), cSel = $('#f-contact'), goal = document.querySelector('#mform [name=goal]'), paramsBox = $('#f-params'), newBox = $('#f-newcontact');
+  const sync = () => {
+    const p = state.playbooks.find(x => x.key === pbSel.value);
+    $('#f-pbdesc').textContent = p.description;
+    const cands = m.contacts.filter(c => c.kind === p.counterparty_kind);
+    cSel.innerHTML = cands.map(c => `<option value="${c.id}">${esc(c.name)} · prefers ${c.preferred_channel}</option>`).join('') + `<option value="__new">+ New ${p.counterparty_kind}…</option>`;
+    newBox.hidden = cSel.value !== '__new';
+    const who = cands[0] ? cands[0].name : `the ${p.counterparty_kind}`;
+    goal.value = p.key === 'medical_records' ? `Obtain complete medical records and itemized bills for ${m.client_name} from ${who} (${m.incident_date} onward)`
+      : p.key === 'client_checkin' ? `Check in with ${m.client_name} every two weeks through treatment; surface treatment changes and questions`
+      : p.key === 'bill_followup' ? `Get the final itemized bill for ${m.client_name} from ${who}` : `${p.name} with ${who} for ${m.client_name}`;
+    paramsBox.innerHTML = p.key === 'medical_records' ? field('date_range', 'Date range of treatment', `value="${m.incident_date} to present"`, true)
+      : p.key === 'client_checkin' ? field('end_date', 'Check in until', 'placeholder="YYYY-MM-DD"', true) : '';
+  };
+  pbSel.onchange = sync; cSel.onchange = () => { newBox.hidden = cSel.value !== '__new'; const nk = newBox.querySelector('[name=kind]'); if (nk) nk.value = state.playbooks.find(x => x.key === pbSel.value).counterparty_kind; };
+  sync();
 }
 
 readHash(); window.addEventListener('hashchange', () => { readHash(); refresh(); });

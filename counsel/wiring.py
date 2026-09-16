@@ -31,6 +31,9 @@ class Settings:
     twilio_key_secret: str = ""
     twilio_from: str = ""
     public_base_url: str = ""
+    dashboard_user: str = "firm"
+    dashboard_password: str = ""      # empty = no auth (local dev)
+    port: int = 8010
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -43,7 +46,8 @@ class Settings:
                    anthropic_api_key=g("ANTHROPIC_API_KEY", ""), anthropic_model=g("ANTHROPIC_MODEL", "claude-opus-5"),
                    twilio_account_sid=g("TWILIO_ACCOUNT_SID", ""), twilio_key_sid=g("TWILIO_API_KEY_SID", ""),
                    twilio_key_secret=g("TWILIO_API_KEY_SECRET", ""), twilio_from=g("TWILIO_FROM_NUMBER", ""),
-                   public_base_url=g("PUBLIC_BASE_URL", ""))
+                   public_base_url=g("PUBLIC_BASE_URL", ""), dashboard_user=g("DASHBOARD_USER", "firm"),
+                   dashboard_password=g("DASHBOARD_PASSWORD", ""), port=int(g("PORT", "8010")))
 
     @property
     def voice_is_real(self) -> bool:
