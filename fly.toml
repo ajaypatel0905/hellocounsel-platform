@@ -1,5 +1,5 @@
 # fly launch --no-deploy --copy-config ; fly volumes create data --size 1 ; fly secrets set ... ; fly deploy
-app = "hellocounsel-agents"
+app = "hellocounsel-agents-ajay"
 primary_region = "sin"
 
 [build]

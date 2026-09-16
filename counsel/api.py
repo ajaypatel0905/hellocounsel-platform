@@ -99,9 +99,9 @@ def create_app(app: App | None = None, do_seed: bool = True) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_):
-        ctx.runtime.drain()
         # The worker runs in both clock modes: with a sim clock nothing becomes due on its own, but real
-        # inbound events (a Twilio call ending) still need to be processed promptly.
+        # inbound events (a Twilio call ending) still need to be processed promptly. The initial drain
+        # runs there too, so the server is reachable while the seeded engagements take their first step.
         threading.Thread(target=worker, daemon=True).start()
         yield
         stop.set()

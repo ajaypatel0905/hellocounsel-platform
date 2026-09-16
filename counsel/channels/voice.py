@@ -72,7 +72,7 @@ class VoiceChannel:
     def send(self, engagement: Engagement, contact: Contact, action: SendMessage) -> dict[str, Any]:
         now = self.clock.now()
         for stale in self.store.list_calls(engagement.id):   # a call nobody answered before the next attempt
-            if stale.ended_at is None and stale.status in ("placing", "ringing", "simulated_ringing"):
+            if stale.ended_at is None and stale.status in ("placing", "ringing", "simulated_ringing", "in-progress"):
                 stale.status, stale.ended_at = "no-answer", now
                 self.store.put_call(stale)
         call = Call(id=new_id("call"), engagement_id=engagement.id, to=contact.phone, purpose=action.purpose,
