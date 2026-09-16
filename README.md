@@ -81,6 +81,25 @@ agent runs its next step. Call status callbacks (`no-answer`, `busy`, `failed`) 
 Measured on the free tiers: a decision step takes 4 to 7 seconds, a phone turn 1 to 2 seconds. Twilio
 ConversationRelay is $0.07/min plus carrier minutes.
 
+## Where data lives
+
+One SQLite file: `counsel.db` locally, `/data/counsel.db` on the Fly volume. Each table is an id, a few
+indexed columns, and a JSON document. Nothing is held in process memory between steps; every step rebuilds
+its context from these tables, which is what makes a crash or redeploy mid-engagement harmless.
+
+| Table | Holds | Role |
+|---|---|---|
+| `engagements` | goal, status, params, agent-maintained `state` (stage, fee_amount, …), unanswered attempts, next wake, outcome | the unit of long-running work |
+| `events` | append-only timeline: message_out, call_placed, call_completed, message_in, update, wait_scheduled, intervention_opened/resolved, run_error, … | the agent's memory (last 40 are rendered into each step), the audit trail, the dashboard timeline |
+| `wakeups` | "run engagement X at T because Y", with `consumed_at` | the scheduler; a claim is atomic so a wake-up runs once |
+| `interventions` | question, options, gated action payload, resolution | the review queue |
+| `runs` | per step: trigger, brain, the exact actions returned, error | replayable record of what the model decided |
+| `calls` | Twilio SID, status, full transcript with agent notes | voice sessions, written turn by turn |
+| `matters`, `contacts` | the firm's cases and counterparties | seeded, or added from the dashboard |
+
+The simulated clock is not persisted; it restarts at real time on boot. Wake-ups scheduled in the future
+relative to the old simulated time still fire once time is advanced past them.
+
 ## HTTP surface
 
 | Method and path | Purpose |
@@ -150,4 +169,9 @@ fly deploy
 ```
 
 `DASHBOARD_PASSWORD` puts HTTP basic auth on the dashboard and API. Twilio callbacks under `/voice/` are
-exempt. The database resets if the volume is recreated; the app re-seeds on an empty database.
+exempt. The database lives on the volume and survives redeploys; the app re-seeds only when it finds no
+matters. Startup does not wait for the seeded engagements' first steps; the worker runs them in the background.
+
+A deployed instance of this slice runs at https://hellocounsel-agents-ajay.fly.dev (credentials shared
+separately). It uses a Twilio trial account, so voice calls only ring the verified demo number; calls to any
+other number fail, and the agent records the failure and retries on its cadence.

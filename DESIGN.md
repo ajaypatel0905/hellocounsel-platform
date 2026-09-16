@@ -35,10 +35,30 @@ headline criterion.
                       └─────────────────────────────────────────────────────────────┘
 ```
 
-Everything durable lives in five tables: `engagements`, `events`, `wakeups`, `interventions`, `runs`
-(plus `matters`, `contacts`, `calls`). A worker claims due wake-ups and calls `step()`. The dashboard
-reads the same tables. The Twilio websocket and the demo simulator both drive `CallManager`, which
-appends to the `calls` table and, when the call ends, feeds the transcript back in as an inbound trigger.
+Everything durable lives in one SQLite file, eight tables, each an id plus a JSON document:
+
+```
+matters ──< contacts ──< engagements ──< events          (append-only; the agent's memory + audit trail)
+                                     ──< wakeups         (the scheduler; claimed once)
+                                     ──< interventions   (the review queue)
+                                     ──< runs            (what the brain returned each step, and any error)
+                                     ──< calls           (voice sessions and transcripts)
+```
+
+Three kinds of state, deliberately separated:
+
+- **Structured state** (`engagements.state`): a small JSON object the agent maintains through
+  `record_update.state`, with fields the playbook declares (`stage`, `fee_amount`, `expected_by`, …).
+  This is what the dashboard shows at a glance and what a case management system would sync.
+- **Narrative state** (`events`): the full timeline. The brain sees the last 40 entries rendered as text.
+  It is never edited, only appended, so what the firm sees is what the agent saw.
+- **Control state** (`engagements.status`, `wakeups`, `interventions`): what the runtime needs to decide
+  whether an engagement may run right now and when it should run next.
+
+No state lives in process memory between steps. A worker claims due wake-ups and calls `step()`; the
+dashboard reads the same tables. The Twilio websocket and the demo simulator both drive `CallManager`,
+which writes to `calls` turn by turn and, when the call ends, feeds the transcript back in as an inbound
+trigger. The one non-durable thing is the simulated clock, which restarts at real time on boot.
 
 ## 3. Decisions, with the alternatives I rejected
 
@@ -157,7 +177,10 @@ shape, or handing the step function to Temporal. The step function does not chan
    keeps a demo alive; production needs a paid tier and per-firm budgets.
 7. **Voice is trial-grade.** No voicemail detection, no carrier-failure retry policy, the greeting is
    deliberately non-interruptible, and Twilio trial accounts only call verified numbers.
-8. **No auth, no tenancy, no PHI controls** beyond the audit log. Out of scope for two days, not out of mind:
+8. **The simulated clock is not persisted.** After a restart, "sim time" jumps back to real time. Wake-ups
+   scheduled in the old future still fire once time is advanced past them, but a reviewer mid-demo will
+   notice the jump. Persisting the offset is a one-line fix I left out.
+9. **No auth beyond a shared password, no tenancy, no PHI controls** beyond the audit log. Out of scope for two days, not out of mind:
    every event already carries an actor, which is the hook for access control and redaction.
 
 ## 7. How a new use case fits
@@ -208,3 +231,4 @@ plus a `request_human`.
 | Third playbook | 1 file, 68 lines including its offline policy |
 | Fourth playbook (in a test) | 12 lines |
 | Voice cost | Twilio ConversationRelay $0.07/min + carrier |
+| Hosting | one Fly.io shared-cpu machine, 512 MB, 1 GB volume; roughly $3/month |
