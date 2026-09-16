@@ -157,6 +157,7 @@ shape, or handing the step function to Temporal. The step function does not chan
 | Email, SMS | Simulated | Same channel interface; delivery recorded; replies enter through the real inbound endpoint. |
 | Counterparty on voice without Twilio | Simulated | Typed lines drive the same `CallManager`. |
 | Firm data | Seeded | Two matters, five contacts, four engagements. No CMS integration. |
+| Documents | Not handled | No intake, classification or validation of records/bills that arrive. Receipt is confirmed by a person. |
 | Scripted brain | Stand-in | Deterministic; exists for tests and no-key runs. Not the product. |
 
 ## 6. Where it breaks today
@@ -177,10 +178,15 @@ shape, or handing the step function to Temporal. The step function does not chan
    keeps a demo alive; production needs a paid tier and per-firm budgets.
 7. **Voice is trial-grade.** No voicemail detection, no carrier-failure retry policy, the greeting is
    deliberately non-interruptible, and Twilio trial accounts only call verified numbers.
-8. **The simulated clock is not persisted.** After a restart, "sim time" jumps back to real time. Wake-ups
+8. **Nothing validates what actually arrives.** When a provider says "records sent" or a bill lands, the
+   platform records the claim and asks the firm to confirm receipt. It does not open the document, check its
+   type (records vs. itemized bill vs. cover letter), confirm the patient and date range match the request,
+   or notice that pages are missing. Today "received" means a person said so. That is the largest product
+   gap for a records workflow, because the whole point is complete, correct records.
+9. **The simulated clock is not persisted.** After a restart, "sim time" jumps back to real time. Wake-ups
    scheduled in the old future still fire once time is advanced past them, but a reviewer mid-demo will
    notice the jump. Persisting the offset is a one-line fix I left out.
-9. **No auth beyond a shared password, no tenancy, no PHI controls** beyond the audit log. Out of scope for two days, not out of mind:
+10. **No auth beyond a shared password, no tenancy, no PHI controls** beyond the audit log. Out of scope for two days, not out of mind:
    every event already carries an actor, which is the hook for access control and redaction.
 
 ## 7. How a new use case fits
@@ -209,16 +215,23 @@ plus a `request_human`.
 
 ## 8. What I would build next, in order
 
-1. **Threaded inbound routing** on real email and SMS adapters. Removes the largest correctness gap.
-2. **Human takeover and hand-back** on threads and live calls, with the human's turns entering the
+1. **Document intake and validation.** Inbound attachments (email, fax-to-email, portal downloads) become
+   a `document` event on the engagement. A classifier tags the type (medical records, itemized bill, cover
+   letter, authorization form, other), extracts patient name, DOB, provider and date range, and compares
+   them to the request. Mismatches or gaps (wrong patient, partial date range, bill without CPT codes)
+   become a `request_human` with the specific problem, or a follow-up to the provider. `complete` for a
+   records engagement then requires validated documents, not a person clicking "received". This fits the
+   existing vocabulary: it is a new channel event plus `record_update` state fields, not a new action.
+2. **Threaded inbound routing** on real email and SMS adapters. Removes the largest correctness gap.
+3. **Human takeover and hand-back** on threads and live calls, with the human's turns entering the
    timeline as `actor=human` so the agent resumes with full context.
-3. **Rolling engagement summaries** as agent-maintained state, so long timelines stay cheap and the
+4. **Rolling engagement summaries** as agent-maintained state, so long timelines stay cheap and the
    dashboard shows a one-paragraph status without reading events.
-4. **An evaluation harness**: recorded engagements replayed against a brain, scored on outcome and on
+5. **An evaluation harness**: recorded engagements replayed against a brain, scored on outcome and on
    whether the right moments reached a person. This is what makes model or prompt changes safe.
-5. **Per-firm playbook configuration in the UI** (cadence, attempts, approval rules, sensitive terms),
+6. **Per-firm playbook configuration in the UI** (cadence, attempts, approval rules, sensitive terms),
    so a case manager tunes behaviour without a deploy.
-6. **Postgres and leased workers**, then tenancy and auth, when more than one firm is on it.
+7. **Postgres and leased workers**, then tenancy and auth, when more than one firm is on it.
 
 ## 9. Numbers from this slice
 
